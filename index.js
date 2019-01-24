@@ -36,7 +36,7 @@ let numMessages = 0;
 
 wss.on('connection', function connection(ws) {
   let role;
-  let id;
+  let myID;
 
   /* When a new WebSocket connects to the server, we have to figure out...
   1. what role the socket is playing and (listener or broadcaster)
@@ -44,11 +44,11 @@ wss.on('connection', function connection(ws) {
   This helps us determine where to send each individual log message */
   function setRole(newRole){
     role = newRole;
-    if(id && role)finishHandshake();
+    if(myID && role)finishHandshake();
   }
   function setID(newID){
-    id = newID;
-    if(id && role)finishHandshake();
+    myID = newID;
+    if(myID && role)finishHandshake();
   }
   function finishHandshake(){
     let roleMap;
@@ -63,10 +63,10 @@ wss.on('connection', function connection(ws) {
       return;
     }
     /* Handle a new connection being created */
-    roleMap[id] = roleMap[id] || []; // If it doesn't yet exist, make it an array
-    roleMap[id].push(ws);
-    if(!chains[id] && isChainFormed()){ // If this newly creates a chain
-      chains[id] = true;
+    roleMap[myID] = roleMap[myID] || []; // If it doesn't yet exist, make it an array
+    roleMap[myID].push(ws);
+    if(!chains[myID] && isChainFormed()){ // If this newly creates a chain
+      chains[myID] = true;
       broadcast("cYour app has been connected for remote debugging!");
     }
     else if(isChainFormed()){ // already chained, but a new member added
@@ -78,12 +78,12 @@ wss.on('connection', function connection(ws) {
     logConnections();
     /* Now to handle what happens when an existing connection is severed */
     ws.on("close",()=>{
-      roleMap[id] = roleMap[id].filter(socket=>socket != ws);
-      if(roleMap[id].length < 1){
-        delete roleMap[id];
+      roleMap[myID] = roleMap[myID].filter(socket=>socket != ws);
+      if(roleMap[myID].length < 1){
+        delete roleMap[myID];
       }
-      if(chains[id] && !isChainFormed()){ // if this breaks a chain
-        chains[id] = false;
+      if(chains[myID] && !isChainFormed()){ // if this breaks a chain
+        chains[myID] = false;
         broadcast("oYour remote page has been disconnected from the server");
       }
       else{
@@ -124,40 +124,41 @@ wss.on('connection', function connection(ws) {
   });
 
   function isChainFormed(){
-    return listeners[id] && broadcasters[id];
-  }
-  function numBroadcasters(){
-    return broadcasters[id]? broadcasters[id].length : 0;
-  }
-  function numListeners(){
-    return listeners[id]? listeners[id].length : 0;
+    return listeners[myID] && broadcasters[myID];
   }
   function logConnections(){
     let ids = {};
     Object.keys(listeners).forEach(id=>ids[id]=true);
     Object.keys(broadcasters).forEach(id=>ids[id]=true);
     Object.keys(ids).forEach(id=>{
-      console.log(id,":",numBroadcasters(),"broadcasters. ",numListeners(),"listeners.");
+      console.log(id,":",numBroadcasters(id),"broadcasters. ",numListeners(id),"listeners.");
     })
     console.log("total messages sent",numMessages);
     console.log("---");
   }
   function displayConnections(){
-    let nb = numBroadcasters();
-    let nl = numListeners();
+    let nb = numBroadcasters(myID);
+    let nl = numListeners(myID);
     let bcString = (nb == 1)?"1 broadcaster":nb+" broadcasters";
     let lsString = (nl == 1)?"1 listener":nl+" listeners";
     broadcast("cNumber of connections: "+bcString+" and "+lsString+".");
   }
   function broadcast(message){
-    let targets = listeners[id];
+    let targets = listeners[myID];
       if(targets){
         targets.forEach(target=>{
           target.send(message);
         })
       }
       else{
-        console.log("targets not found",id,message);
+        console.log("targets not found",myID,message);
       }
   }
 });
+
+function numBroadcasters(id){
+  return broadcasters[id]? broadcasters[id].length : 0;
+}
+function numListeners(id){
+  return listeners[id]? listeners[id].length : 0;
+}
